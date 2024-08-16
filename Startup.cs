@@ -1,15 +1,12 @@
-﻿using LibraryAPI.Data;
-using LibraryAPI.Helpers;
-using LibraryAPI.Services;
-using Microsoft.AspNetCore.Builder;
+﻿using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using LibraryAPI.Middleware;
-using LibraryAPI.Models;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Serialization;
 using LibraryAPI.Extensions;
+using LibraryAPI.Middleware;
 
 namespace LibraryAPI
 {
@@ -24,10 +21,17 @@ namespace LibraryAPI
 
         public void ConfigureServices(IServiceCollection services)
         {
-            services.AddControllers();
+            services.AddServices(Configuration);
 
-            services.AddSingleton<TokenHelper>();
-            services.Configure<Books>(Configuration);
+            services.AddControllers()
+                .AddNewtonsoftJson(options =>
+                {
+                    options.SerializerSettings.ReferenceLoopHandling = ReferenceLoopHandling.Ignore;
+                    options.SerializerSettings.PreserveReferencesHandling = PreserveReferencesHandling.Objects;
+                    options.SerializerSettings.ContractResolver = new DefaultContractResolver(); // Optional: Customize contract resolution
+                });
+
+            services.AddLogging();
 
             // Add CORS policy
             services.AddCors(options =>
@@ -41,7 +45,7 @@ namespace LibraryAPI
                     });
             });
 
-            // Add any other services (e.g., authentication, etc.) here
+            services.AddAuthorization();
         }
 
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
@@ -49,6 +53,8 @@ namespace LibraryAPI
             if (env.IsDevelopment())
             {
                 app.UseDeveloperExceptionPage();
+                app.UseSwagger();
+                app.UseSwaggerUI();
             }
             else
             {
@@ -59,18 +65,21 @@ namespace LibraryAPI
             // Redirect HTTP requests to HTTPS
             //app.UseHttpsRedirection();
 
-            app.UseRouting();
+
+
+            // Use CORS before authentication and authorization
             app.UseCors("AllowSpecificOrigin");
 
             // Use custom middleware
             app.UseMiddleware<AuthMiddleware>();
             app.UseMiddleware<LoggedInMiddleware>();
 
-            // Use authentication middleware if needed
-            // app.UseAuthentication();
+            // Use authentication and authorization middleware
+            app.UseAuthentication();
 
-            // Use authorization middleware if needed
-            // app.UseAuthorization();
+            app.UseRouting();
+
+            app.UseAuthorization();
 
             app.UseEndpoints(endpoints =>
             {
